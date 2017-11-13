@@ -115,3 +115,83 @@ with tf.Session(config=session_conf) as sess:
                          grad_clip=FLAGS.grad_clip,num_filters=FLAGS.num_filters,
                          filter_size= FLAGS.filter_size)
   print("model ceated")
+  global_step = tf.Variable(0, name="global_step", trainable=False)
+  decay_step = int(len(word_index_sentences_train_pad)/FLAGS.batch_size) 
+  #we want to decay per epoch. Comes to around 1444 for batch of 100
+  #print("decay_step :",decay_step)
+  learning_rate = tf.train.exponential_decay(FLAGS.starter_learning_rate, global_step,decay_step, 
+                                             FLAGS.decay_rate, staircase=True)
+  if(FLAGS.Optimizer==2):
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate) #also try GradientDescentOptimizer , AdamOptimizer
+  elif(FLAGS.Optimizer==1):
+    optimizer = tf.train.AdamOptimizer(learning_rate)
+    
+  #This is the first part of minimize()
+  grads_and_vars = optimizer.compute_gradients(BiLSTM.loss)
+  
+  #This is the second part of minimize()
+  train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
+  # Keep track of gradient values and sparsity (optional)
+  grad_summaries = []
+  for g, v in grads_and_vars:
+    if g is not None:
+      grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
+      sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
+      grad_summaries.append(grad_hist_summary)
+      grad_summaries.append(sparsity_summary)
+    grad_summaries_merged = tf.summary.merge(grad_summaries)
+    
+    # Summaries for loss and accuracy
+    loss_summary = tf.summary.scalar("loss", BiLSTM.loss)
+    #acc_summary = tf.summary.scalar("accuracy", BiLSTM.accuracy)  
+
+    # Train Summaries
+    train_summary_op = tf.summary.merge([loss_summary, grad_summaries_merged])
+    train_summary_dir = os.path.join(FLAGS.out_dir, "summaries", "train")
+    train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
+
+    # Dev summaries
+    dev_summary_op = tf.summary.merge([loss_summary])
+    dev_summary_dir = os.path.join(FLAGS.out_dir, "summaries", "dev")
+    dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
+
+
+
+    checkpoint_prefix = os.path.join(checkpoint_dir, "model")
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+    saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
+    
+    sess.run(tf.global_variables_initializer())
+
+    def train_step(session,BiLSTM, x_batch, y_batch,seq_lengths,
+                   dropout_keep_prob, char_batch):
+      """
+      A single training step
+      """
+      feed_dict={
+        BiLSTM.input_x : x_batch,
+        BiLSTM.input_x_char : char_batch,
+        BiLSTM.input_y : y_batch,
+        BiLSTM.sequence_lengths: seq_lengths,
+        BiLSTM.dropout_keep_prob : dropout_keep_prob
+      }
+        
+      _, step, summaries, loss,logits,transition_params = session.run(
+        [train_op, global_step, train_summary_op, BiLSTM.loss,BiLSTM.logits,BiLSTM.transition_params],
+        feed_dict)
+
+      time_str = datetime.datetime.now().isoformat()
+      print("{}: step {}, loss {:g}".format(time_str, step, loss))
+      train_summary_writer.add_summary(summaries, step)
+      
+    batches = utils.batch_iter(
+    list(zip(word_index_sentences_train_pad, label_index_sentences_train_pad ,
+             train_seq_length,char_index_train_pad)), 
+      FLAGS.batch_size, FLAGS.num_epochs)
+    
+    # Training loop. For each batch...
+    for batch in batches:
+      x_batch, y_batch,seq_lengths,char_batch = zip(*batch)
+      train_step(sess,BiLSTM, x_batch, y_batch,seq_lengths,
+                 FLAGS.dropout_keep_prob, char_batch)

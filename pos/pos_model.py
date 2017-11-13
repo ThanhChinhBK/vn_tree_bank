@@ -26,8 +26,8 @@ class textBiLSTM(object):
             #plus 1 becuase 0 is for random word
             self.W_word = tf.Variable(tf.random_uniform([word_vocab_size+1, word_embedd_dim],-1,1),
                                       trainable=True, name="W_word")
-            self.word_embedding_placeholder = tf.placeholder(tf.float32, [word_vocab_size+1, word_embedd_dim])
-            word_embedding_init = self.W_word.assign(self.word_embedding_placeholder)
+            #self.word_embedding_placeholder = tf.placeholder(tf.float32, [word_vocab_size+1, word_embedd_dim])
+            #word_embedding_init = self.W_word.assign(self.word_embedding_placeholder)
             ##output is #[batch_size, sequence_length, word_embedd_dim]
             self.embedded_words = tf.nn.embedding_lookup(self.W_word, self.input_x,name="embedded_words") 
 
@@ -94,7 +94,6 @@ class textBiLSTM(object):
             self.biLstm = tf.concat([output_fw, output_bw], axis=-1,name="biLstm")
             self.biLstm_clip = tf.clip_by_value(self.biLstm,-grad_clip,grad_clip)
             self.biLstm_dropout =tf.nn.dropout(self.biLstm_clip, self.dropout_keep_prob)
-                
         with tf.name_scope("output"):
             W_out = tf.get_variable("W_out",shape = [2*n_hidden_LSTM, num_classes],
                                     initializer=tf.contrib.layers.xavier_initializer())

@@ -2,7 +2,6 @@ import sys, string, os
 import json, pickle
 import numpy as np
 from collections import defaultdict
-import gensim
 
 MAX_LENGTH = 120
 MAX_CHAR_PER_WORD = 45
@@ -21,7 +20,7 @@ def read_conll_sequence_labeling(path,word_alphabet, label_alphabet, index_word,
   word_index_sentences = []
   label_index_sentences = []
   if(out_dir !=None):
-    vocab = set()
+    #vocab = set()
     #print(out_dir = os.path.abspath(os.path.join(os.path.curdir, "vocab", timestamp)))
     vocab_save_path = os.path.join(out_dir, "vocab.pkl")
   words = []
@@ -54,8 +53,8 @@ def read_conll_sequence_labeling(path,word_alphabet, label_alphabet, index_word,
         word = tokens[index_word]
         label = tokens[index_label]
         words.append(word)
-        if(out_dir !=None):
-          vocab.add(word)
+        #if(out_dir !=None):
+        #  vocab.add(word)
         labels.append(label)
         if word not in word_alphabet:
           word_alphabet.append(word)
@@ -81,6 +80,7 @@ def read_conll_sequence_labeling(path,word_alphabet, label_alphabet, index_word,
     if not os.path.exists(out_dir):
       os.makedirs(out_dir)
     with open(vocab_save_path, 'wb') as handle:
+      vocab = set(word_alphabet)
       pickle.dump(vocab, handle)  
       print("vocab written to %s" % (vocab_save_path))     
   print("#sentences: %d, #tokens: %d" % (len(word_sentences), num_tokens))
@@ -99,7 +99,7 @@ def build_embedd_table(word_alphabet, embedd_dict, embedd_dim, caseless=True):
     embedd_table[index, :] = embedd
   return embedd_table
 
-def padSequence(dataset,max_length,beginZero=True):
+def padSequence(dataset,max_length):
   dataset_p = []
   actual_sequence_length =[]
   #added np.atleast_2d here
@@ -107,10 +107,7 @@ def padSequence(dataset,max_length,beginZero=True):
     row_length = len(x)
     actual_sequence_length.append(row_length)
     if(row_length <=max_length):
-      if(beginZero):
-        dataset_p.append(np.pad(x,pad_width=(max_length-len(x),0),mode='constant',constant_values=0))
-      else:
-        dataset_p.append(np.pad(x,pad_width=(0,max_length-len(x)),mode='constant',constant_values=0))
+      dataset_p.append(np.pad(x,pad_width=(0,max_length-len(x)),mode='constant',constant_values=0))
     else:
       dataset_p.append(x[0:max_length])
   return np.array(dataset_p),actual_sequence_length
@@ -163,5 +160,5 @@ def generate_character_data(sentences_list,char_alphabet, setType="Train", char_
   char_alphabet.append(word_end)
   index_sentences, max_char_per_word = get_character_indexes(sentences_list)
   max_char_per_word = min(MAX_CHAR_PER_WORD, max_char_per_word)
-  logger.info("Maximum character length after %s set is %d" %(setType ,max_char_per_word))
+  print("Maximum character length after %s set is %d" %(setType ,max_char_per_word))
   return index_sentences,max_char_per_word
