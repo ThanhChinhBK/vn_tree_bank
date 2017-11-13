@@ -75,7 +75,7 @@ def read_conll_sequence_labeling(path,word_alphabet, label_alphabet, index_word,
       num_tokens += len(words)
     else:
       if len(words) != 0:
-        logger.info("ignore sentence with length %d" % (len(words)))
+        print("ignore sentence with length %d" % (len(words)))
 
   if(out_dir !=None):
     if not os.path.exists(out_dir):
@@ -98,6 +98,22 @@ def build_embedd_table(word_alphabet, embedd_dict, embedd_dim, caseless=True):
     embedd = embedd_dict[ww] if ww in embedd_dict else np.random.uniform(-scale, scale, [1, embedd_dim])
     embedd_table[index, :] = embedd
   return embedd_table
+
+def padSequence(dataset,max_length,beginZero=True):
+  dataset_p = []
+  actual_sequence_length =[]
+  #added np.atleast_2d here
+  for x in dataset:
+    row_length = len(x)
+    actual_sequence_length.append(row_length)
+    if(row_length <=max_length):
+      if(beginZero):
+        dataset_p.append(np.pad(x,pad_width=(max_length-len(x),0),mode='constant',constant_values=0))
+      else:
+        dataset_p.append(np.pad(x,pad_width=(0,max_length-len(x)),mode='constant',constant_values=0))
+    else:
+      dataset_p.append(x[0:max_length])
+  return np.array(dataset_p),actual_sequence_length
 
 def construct_padded_char(index_sentences,char_alphabet,max_sent_length,max_char_per_word):
   C = np.empty([len(index_sentences), max_sent_length, max_char_per_word], dtype=np.int32)
