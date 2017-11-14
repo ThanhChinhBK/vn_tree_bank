@@ -3,6 +3,7 @@ import utils as utils
 #import aux_network_func as af
 import data_utils as du
 import pos_model as pm
+import network_utils as nu
 
 import dill
 
@@ -16,7 +17,7 @@ from tensorflow.python import debug as tf_debug
 tf.flags.DEFINE_string("train_path", "../BKTreebank_LREC2018/train03-train", "Train Path")
 tf.flags.DEFINE_string("test_path", "../BKTreebank_LREC2018/test03", "Test Path")
 tf.flags.DEFINE_string("dev_path", "../BKTreebank_LREC2018/train03-dev", "dev Path")
-tf.flags.DEFINE_string("out_dir", "../precessing", "out dir")
+tf.flags.DEFINE_string("out_dir", "processing", "out dir")
 tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
 tf.flags.DEFINE_float("grad_clip", 5, 
                       "value for gradient clipping to avoid exploding/vanishing gradient(default: 5.0) in LSTM")
@@ -185,6 +186,29 @@ with tf.Session(config=session_conf) as sess:
       print("{}: step {}, loss {:g}".format(time_str, step, loss))
       train_summary_writer.add_summary(summaries, step)
       
+    def dev_step (session,BiLSTM, x_batch,y_batch,act_seq_lengths,
+                  dropout_keep_prob,step,char_batch,writer= None):
+      feed_dict={
+        BiLSTM.input_x : x_batch,
+        BiLSTM.input_x_char : char_batch,
+#        BiLSTM.input_y : y_batch,
+        BiLSTM.sequence_lengths: seq_lengths,
+        BiLSTM.dropout_keep_prob : dropout_keep_prob
+      }
+      logits, transition_params,summaries = session.run([BiLSTM.logits, BiLSTM.transition_params,dev_summary_op],
+                                                        feed_dict=feed_dict)
+      accuracy  = nu.predictAccuracyAndWrite(logits,transition_params,
+                                             act_seq_lengths,y_batch,step,
+                                             x_batch,word_alphabet,
+                                             label_alphabet)
+
+      time_str = datetime.datetime.now().isoformat()
+      print("{}: step {},  accuracy on set {:g}".format(time_str, step, accuracy))
+                                                        
+      if writer:
+        writer.add_summary(summaries, step)
+      return accuracy
+
     batches = utils.batch_iter(
     list(zip(word_index_sentences_train_pad, label_index_sentences_train_pad ,
              train_seq_length,char_index_train_pad)), 
@@ -195,3 +219,17 @@ with tf.Session(config=session_conf) as sess:
       x_batch, y_batch,seq_lengths,char_batch = zip(*batch)
       train_step(sess,BiLSTM, x_batch, y_batch,seq_lengths,
                  FLAGS.dropout_keep_prob, char_batch)
+      current_step = tf.train.global_step(sess, global_step)
+      if current_step % FLAGS.evaluate_every == 0:
+        print("\nEvaluation:")
+        new_accuracy = dev_step(sess,BiLSTM,
+                                word_index_sentences_dev_pad,
+                                label_index_sentences_dev_pad ,dev_seq_length,
+                                FLAGS.dropout_keep_prob,current_step,
+                                char_index_dev_pad,writer=dev_summary_writer)
+        print("")
+        if (new_accuracy  > best_accuracy_test):
+          best_accuracy_test = new_accuracy
+          best_step_test = current_step
+                
+        print("DEV: best_accuracy : %f best_step: %d" %(best_accuracy,best_step,best_overall_accuracy))
