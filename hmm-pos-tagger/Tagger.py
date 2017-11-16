@@ -24,7 +24,7 @@ class Tagger:
     # x-fold cross-validation
     test_cycles = 10
     
-    def __init__(self, corpus_path, corpus_files):
+    def __init__(self, corpus_path, corpus_files, test_files):
         """
         Construct a Tagger object
         
@@ -33,8 +33,8 @@ class Tagger:
         """
         
         # object for working with corpus data
-        self.tb = Treebank(corpus_path, corpus_files) 
-        
+        self.train_tb = Treebank(corpus_path, corpus_files) 
+        self.test_tb = Treebank(corpus_path, test_files)
         # will contain a list of tags in training corpus
         self.pos_tags = False 
         
@@ -52,7 +52,35 @@ class Tagger:
     
     
     ######### `PUBLIC' FUNCTIONS #########
-    
+
+    def run_train_test(self):
+        total_time_start = time.time() # keep track of time
+        rights = [] # array to hold number of correctly-tagged words for each test
+        wrongs = [] # array to hold number of incorrectly-tagged words for each test
+        totals = [] # array to hold number of total words for each test
+        all_missed = [] # array to hold incorrect tag information for each test
+        training_sents = self.train_tb.tagged_sents
+        testing_sents = self.test_tb.sents, self.test_tb.tagged_sents
+        for epoch in range(100):
+            msg("STARTING epoch %d\n" % (epoch))
+            self.train(training_sents)
+            (right, wrong, missed) = self.test(testing_sents)
+            total = right + wrong
+            rights.append(right) # store the correct count for this test cycle
+            wrongs.append(wrong) # store the incorrect count for this test cycle
+            totals.append(total) # store the total words tested for this test cycle
+            all_missed += missed # add incorrect tag information from this cycle
+            
+            msg("Total words: %d\n" % total)
+            msg("Correct tags: %d (%0.2f%%)\n" % (right, right / total * 100))
+            msg("Incorrect tags: %d (%0.2f%%)\n" % (wrong, wrong / total * 100))
+        
+        print("Total tests run: %d" % len(totals))
+        print("Total time taken: %0.2f seconds" % (time.time() - total_time_start))
+        print("Average correct tags: %0.2f%%" % (sum(rights) / sum(totals) * 100))
+        print("Average incorrect tags: %0.2f%%" % (sum(wrongs) / sum(totals) * 100))
+
+
     def run_test_cycles(self):
         """
         Run the test cycles for training and testing the tagger.
