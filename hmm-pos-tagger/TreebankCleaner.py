@@ -1,56 +1,89 @@
 ######### TreebankCleaner.py #########
 
-import re # for regular expressions
 from Helper import msg # for messaging
+import os
+
+def read_conll_sequence_labeling(path, index_word, index_label):
+  """
+  read data from file in conll format
+  :param path: file path
+  :return: sentences of words and labels, sentences of indexes of words and labels.
+  """
+  word_sentences = []
+  label_sentences = []
+  words = []
+  labels = []
+  num_tokens = 0
+  MAX_LENGTH = 120
+
+  with open(path, "rb") as file:
+    for line in file:
+      line = line.decode('utf-8')
+      if line.strip() == "":#this means we have the entire sentence
+        if 0 < len(words) <= MAX_LENGTH:
+          word_sentences.append(words[:])
+          label_sentences.append(labels[:])
+          num_tokens += len(words)
+
+        else:
+          if len(words) != 0:
+            print("ignore sentence with length %d" % (len(words)))
+
+        words = []
+        labels = []
+      else:
+        tokens = line.strip().split()
+        word = tokens[index_word]
+        label = tokens[index_label]
+        words.append(word)
+        #if(out_dir !=None):
+        #  vocab.add(word)
+        labels.append(label)
+ 
+   #this is for the last sentence            
+    if 0 < len(words) <= MAX_LENGTH:
+      word_sentences.append(words[:])
+      label_sentences.append(labels[:])
+      num_tokens += len(words)
+    else:
+      if len(words) != 0:
+        print("ignore sentence with length %d" % (len(words)))
+
+ 
+  print("#sentences: %d, #tokens: %d" % (len(word_sentences), num_tokens))
+    
+  return word_sentences, label_sentences
 
 class TreebankCleaner:
-    "A class for cleaning treebank text"
+  "A class for cleaning treebank text"
     
-    def __init__(self, corpus_path, corpus_files):
-        """
-        Initialize a TreebankCleaner object.
+  def __init__(self, corpus_path, corpus_files):
+    """
+    Initialize a TreebankCleaner object.
+    
+    :param corpus_path: path of corpus files
+    :param corpus_files: list of corpus files
+    """
         
-        :param corpus_path: path of corpus files
-        :param corpus_files: list of corpus files
-        """
-        
-        self.corpus_path = corpus_path
-        self.corpus_files = corpus_files
+    self.corpus_path = corpus_path
+    self.corpus_files = corpus_files
     
     ######### `PUBLIC' FUNCTIONS #########
+
         
-    def clean(self):
-        """
+  def clean(self):
+    """
         Clean corpus files and write the results to disk
         """
         
-        # loop through files
-        for corpus_file in self.corpus_files:
+    # loop through files
+    for corpus_file in self.corpus_files:
             
-            msg("Cleaning %s..." % corpus_file)
-            
-            # get the file in a string
-            f = open(self.corpus_path + corpus_file, 'r')
-            data = f.read()
-            f.close()
-            
-            # use an unoptimized set of arcane regular expressions to clean the data
-            data = re.sub(r' +(\r)?\n', '\n', data)
-            para_sep = r'======================================'
-            data = re.sub(r'([^\.])(\n+)', '\\1 ', data)
-            data = re.sub(para_sep, '\n'+para_sep+'\n', data)
-            data = re.sub(r' +\n', '\n', data)
-            data = re.sub(r'\n\n+', '\n', data)
-            data = re.sub(para_sep + r'\n' + para_sep, para_sep, data)
-            data = re.sub('^\n' + para_sep + '\n', '', data)
-            data = re.sub(r' *(\[|\]) *', ' ', data)
-            data = re.sub(r'\n +', '\n', data)
-            data = re.sub(r'^ +', '', data)
-            data = re.sub(para_sep + r'\n', '', data)
-            
-            # write the cleaned data to a new file
-            new_file = corpus_file + '_cleaned'
-            f = open(self.corpus_path + new_file, 'w')
-            f.write(data)
-            
-            msg("done!\n")
+      msg("Cleaning %s..." % corpus_file)
+      word_sents, label_sents = read_conll_sequence_labeling(os.path.join(self.corpus_path, corpus_file),1,3)
+      with open(os.path.join(self.corpus_path, corpus_file+"_cleaned"), "w") as f:
+        for word, label in zip(word_sents, label_sents):
+          for w, l in zip(word, label):
+            f.write(w+"/"+l+" ")
+          f.write("\n")
+    
