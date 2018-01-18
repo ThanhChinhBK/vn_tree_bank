@@ -4,7 +4,6 @@ import pickle
 
 
 class config():
-  num_epochs = 2
   sequence_length = 31
   batch_size = 50
   vocab_size = 16314
